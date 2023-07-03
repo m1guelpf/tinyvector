@@ -20,3 +20,6 @@ aide = { version = "0.11.0", features = ["axum"] }
 tokio = { version = "1.29.1", features = ["full"] }
 axum-jsonschema = { version = "0.6.0", features = ["aide"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+[build-dependencies]
+chrono = "0.4.26"
