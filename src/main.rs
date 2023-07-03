@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use tracing_subscriber::{
-    prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+	prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
 };
 
 mod routes;
@@ -11,11 +11,11 @@ mod shutdown;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| "tinyvector=info".into()),
-        ))
-        .init();
+	tracing_subscriber::registry()
+		.with(tracing_subscriber::fmt::layer().with_filter(
+			EnvFilter::try_from_default_env().unwrap_or_else(|_| "tinyvector=info".into()),
+		))
+		.init();
 
-    server::start().await
+	server::start().await
 }

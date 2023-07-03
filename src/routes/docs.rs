@@ -1,24 +1,24 @@
 use aide::{
-    axum::{routing::get, ApiRouter},
-    openapi::OpenApi,
+	axum::{routing::get, ApiRouter},
+	openapi::OpenApi,
 };
 use axum::{response::Html, Extension};
 use axum_jsonschema::Json;
 
 pub fn handler() -> ApiRouter {
-    ApiRouter::new()
-        .route("/docs", get(swagger))
-        .route("/openapi.json", get(openapi_schema))
+	ApiRouter::new()
+		.route("/docs", get(swagger))
+		.route("/openapi.json", get(openapi_schema))
 }
 
 #[allow(clippy::unused_async)]
 async fn openapi_schema(Extension(openapi): Extension<OpenApi>) -> Json<OpenApi> {
-    Json(openapi)
+	Json(openapi)
 }
 
 #[allow(clippy::unused_async)]
 async fn swagger() -> Html<String> {
-    Html(SWAGGER_UI_TEMPLATE.replace("{:spec_url}", "/openapi.json"))
+	Html(SWAGGER_UI_TEMPLATE.replace("{:spec_url}", "/openapi.json"))
 }
 
 const SWAGGER_UI_TEMPLATE: &str = r#"

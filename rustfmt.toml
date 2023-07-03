@@ -1,0 +1,8 @@
+tab_spaces = 4
+hard_tabs = true
+edition = "2021"
+use_try_shorthand = true
+imports_granularity = "crate"
+use_field_init_shorthand = true
+condense_wildcard_suffixes = true
+match_block_trailing_comma = true
