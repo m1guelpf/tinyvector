@@ -1,0 +1,26 @@
+name: Publish to Cargo
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: cargo
+
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: cache
+
+      - name: Publish Crate
+        uses: seunlanlege/cargo-auto-publish@2
