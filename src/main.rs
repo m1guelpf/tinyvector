@@ -13,6 +13,7 @@ mod errors;
 mod routes;
 mod server;
 mod shutdown;
+mod similarity;
 
 #[tokio::main]
 async fn main() -> Result<()> {

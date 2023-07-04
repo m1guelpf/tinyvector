@@ -2,8 +2,10 @@ use anyhow::Context;
 use axum::Extension;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, fs, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
+
+use crate::similarity::{get_distance_fn, Distance};
 
 lazy_static! {
 	pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
@@ -30,17 +32,52 @@ pub struct Db {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
+pub struct SimilarityResult {
+	score: f32,
+	embedding: Embedding,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Collection {
 	/// Dimension of the vectors in the collection
-	pub dimension: u8,
+	pub dimension: usize,
+	/// Distance metric used for querying
+	pub distance: Distance,
+	/// Embeddings in the collection
 	#[serde(default)]
 	pub embeddings: Vec<Embedding>,
+}
+
+impl Collection {
+	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
+		let mut scores = Vec::with_capacity(self.embeddings.len());
+
+		let distance_fn = get_distance_fn(&self.distance);
+		for embedding in &self.embeddings {
+			scores.push(distance_fn(&embedding.vector, query));
+		}
+
+		let mut partitioned_indices: Vec<usize> = (0..scores.len()).collect();
+		partitioned_indices.sort_unstable_by(|&a, &b| {
+			scores[b].partial_cmp(&scores[a]).unwrap_or(Ordering::Equal)
+		});
+
+		partitioned_indices
+			.iter()
+			.take(k)
+			.map(|&i| SimilarityResult {
+				score: scores[i],
+				embedding: self.embeddings[i].clone(),
+			})
+			.collect()
+	}
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Embedding {
 	pub id: String,
-	pub vector: Vec<u8>,
+	pub vector: Vec<f32>,
+	pub metadata: Option<HashMap<String, String>>,
 }
 
 impl Db {
@@ -54,13 +91,19 @@ impl Db {
 		Extension(Arc::new(RwLock::new(self)))
 	}
 
-	pub fn create_collection(&mut self, name: String, dimension: u8) -> Result<Collection, Error> {
+	pub fn create_collection(
+		&mut self,
+		name: String,
+		dimension: usize,
+		distance: Distance,
+	) -> Result<Collection, Error> {
 		if self.collections.contains_key(&name) {
 			return Err(Error::UniqueViolation);
 		}
 
 		let collection = Collection {
 			dimension,
+			distance,
 			embeddings: Vec::new(),
 		};
 
@@ -93,7 +136,7 @@ impl Db {
 			return Err(Error::UniqueViolation);
 		}
 
-		if embedding.vector.len() != collection.dimension as usize {
+		if embedding.vector.len() != collection.dimension {
 			return Err(Error::DimensionMismatch);
 		}
 
@@ -102,19 +145,20 @@ impl Db {
 		Ok(())
 	}
 
-	pub fn get_collection(&self, name: &str) -> Option<Collection> {
-		self.collections.get(name).cloned()
+	pub fn get_collection(&self, name: &str) -> Option<&Collection> {
+		self.collections.get(name)
 	}
 
 	fn load_from_store() -> anyhow::Result<Self> {
 		if !STORE_PATH.exists() {
+			tracing::debug!("Creating database store");
 			fs::create_dir_all(STORE_PATH.parent().context("Invalid store path")?)?;
 
 			return Ok(Self::new());
 		}
 
+		tracing::debug!("Loading database from store");
 		let db = fs::read(STORE_PATH.as_path())?;
-
 		Ok(bincode::deserialize(&db[..])?)
 	}
 
@@ -129,6 +173,7 @@ impl Db {
 
 impl Drop for Db {
 	fn drop(&mut self) {
+		tracing::debug!("Saving database to store");
 		self.save_to_store().ok();
 	}
 }

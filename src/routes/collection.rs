@@ -7,7 +7,7 @@ use axum_jsonschema::Json;
 use schemars::JsonSchema;
 
 use crate::{
-	db::{self, Collection, DbExtension, Embedding, Error as DbError},
+	db::{self, Collection, DbExtension, Embedding, Error as DbError, SimilarityResult},
 	errors::HTTPError,
 };
 
@@ -36,7 +36,7 @@ async fn create_collection(
 
 	let mut db = db.write().await;
 
-	let create_result = db.create_collection(collection_name, req.dimension);
+	let create_result = db.create_collection(collection_name, req.dimension, req.distance);
 	drop(db);
 
 	match create_result {
@@ -50,20 +50,30 @@ async fn create_collection(
 
 #[derive(Debug, serde::Deserialize, JsonSchema)]
 struct QueryCollectionQuery {
-	query: Vec<u8>,
+	query: Vec<f32>,
 	k: Option<usize>,
 }
 
+#[allow(clippy::significant_drop_tightening)]
 async fn query_collection(
 	Path(collection_name): Path<String>,
 	Extension(db): DbExtension,
-	Json(query): Json<QueryCollectionQuery>,
-) -> Result<Json<Vec<Embedding>>, HTTPError> {
+	Json(req): Json<QueryCollectionQuery>,
+) -> Result<Json<Vec<SimilarityResult>>, HTTPError> {
 	tracing::trace!("Querying collection {collection_name}");
 
 	let db = db.read().await;
+	let collection = db
+		.get_collection(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
 
-	todo!();
+	if req.query.len() != collection.dimension {
+		return Err(HTTPError::new("Query dimension mismatch").with_status(StatusCode::BAD_REQUEST));
+	}
+
+	Ok(Json(
+		collection.get_similarity(&req.query, req.k.unwrap_or(1)),
+	))
 }
 
 async fn get_collection_info(
@@ -76,7 +86,8 @@ async fn get_collection_info(
 
 	Ok(Json(
 		db.get_collection(&collection_name)
-			.ok_or_else(|| HTTPError::new("Collection not found"))?,
+			.ok_or_else(|| HTTPError::new("Collection not found"))?
+			.clone(),
 	))
 }
 
