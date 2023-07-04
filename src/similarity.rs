@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::cmp::{self, Ordering};
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub enum Distance {
@@ -12,7 +12,18 @@ pub enum Distance {
 	DotProduct,
 }
 
-pub fn get_distance_fn(metric: Distance) -> impl Fn(&[f32], &[f32]) -> f32 {
+pub fn get_cache_attr(metric: Distance, vec: &[f32]) -> f32 {
+	match metric {
+		// Dot product doesn't allow any caching
+		Distance::DotProduct => 0.0,
+		// Precompute the sum of squares of the vector
+		Distance::Euclidean => vec.iter().map(|x| x.powi(2)).sum(),
+		// Precompute the magnitude of the vector
+		Distance::Cosine => vec.iter().map(|&x| x.powi(2)).sum::<f32>().sqrt(),
+	}
+}
+
+pub fn get_distance_fn(metric: Distance) -> impl Fn(&[f32], &[f32], f32) -> f32 {
 	match metric {
 		Distance::DotProduct => dot_product,
 		Distance::Cosine => cosine_similarity,
@@ -20,40 +31,40 @@ pub fn get_distance_fn(metric: Distance) -> impl Fn(&[f32], &[f32]) -> f32 {
 	}
 }
 
-fn euclidian_distance(vec_one: &[f32], vec_two: &[f32]) -> f32 {
-	let mut result: f32 = 0.0;
+fn euclidian_distance(a: &[f32], b: &[f32], a_sum_squares: f32) -> f32 {
+	let mut cross_terms = 0.0;
+	let mut b_sum_squares = 0.0;
 
-	for (i, j) in vec_one.iter().zip(vec_two) {
-		result += (i - j).abs().powi(2);
+	for (i, j) in a.iter().zip(b) {
+		cross_terms += i * j;
+		b_sum_squares += j.powi(2);
 	}
 
-	result.sqrt()
+	2.0f32
+		.mul_add(-cross_terms, a_sum_squares + b_sum_squares)
+		.max(0.0)
+		.sqrt()
 }
 
-fn cosine_similarity(vec_one: &[f32], vec_two: &[f32]) -> f32 {
-	let dot_product = dot_product(vec_one, vec_two);
-	let magnitude = magnitude(vec_one) * magnitude(vec_two);
+fn cosine_similarity(a: &[f32], b: &[f32], mag_a: f32) -> f32 {
+	let mut dot_product = 0.0;
+	let mut mag_b = 0.0;
 
-	dot_product / magnitude
-}
-
-fn dot_product(xs: &[f32], ys: &[f32]) -> f32 {
-	let mut result: f32 = 0.0;
-
-	let len = cmp::min(xs.len(), ys.len());
-	let xs = &xs[..len];
-	let ys = &ys[..len];
-
-	for i in 0..len {
-		result += xs[i] * ys[i];
+	for (i, j) in a.iter().zip(b) {
+		dot_product += i * j;
+		mag_b += j.powi(2);
 	}
 
-	result
+	let mag_b = mag_b.sqrt();
+	if mag_a == 0.0 || mag_b == 0.0 {
+		0.0
+	} else {
+		dot_product / (mag_a * mag_b)
+	}
 }
 
-fn magnitude(vec: &[f32]) -> f32 {
-	// The magnitude of a vector is the sqrt of its own dotproduct
-	dot_product(vec, vec).sqrt()
+fn dot_product(a: &[f32], b: &[f32], _: f32) -> f32 {
+	a.iter().zip(b).fold(0.0, |acc, (x, y)| acc + x * y)
 }
 
 pub struct ScoreIndex {

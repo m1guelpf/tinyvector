@@ -11,7 +11,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-use crate::similarity::{get_distance_fn, Distance, ScoreIndex};
+use crate::similarity::{get_cache_attr, get_distance_fn, Distance, ScoreIndex};
 
 lazy_static! {
 	pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
@@ -56,6 +56,7 @@ pub struct Collection {
 
 impl Collection {
 	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
+		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
 		let heaps = self
@@ -64,7 +65,7 @@ impl Collection {
 			.enumerate()
 			.map(|(index, embedding)| {
 				let mut heap = BinaryHeap::new();
-				let score = distance_fn(&embedding.vector, query);
+				let score = distance_fn(&embedding.vector, query, memo_attr);
 				heap.push(ScoreIndex { score, index });
 				heap
 			})
