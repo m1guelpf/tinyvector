@@ -1,9 +1,9 @@
 [package]
 edition = "2021"
 license = "MIT"
+version = "0.0.1"
 name = "tinyvector"
 readme = "README.md"
-version = "0.0.0-alpha.1"
 categories = ["science", "database-implementations"]
 repository = "https://github.com/m1guelpf/tinyvector-rs"
 authors = ["Miguel Piedrafita <soy@miguelpiedrafita.com>"]
