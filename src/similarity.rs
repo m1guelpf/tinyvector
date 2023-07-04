@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::cmp;
+use std::cmp::{self, Ordering};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub enum Distance {
@@ -54,4 +54,30 @@ fn dot_product(xs: &[f32], ys: &[f32]) -> f32 {
 fn magnitude(vec: &[f32]) -> f32 {
 	// The magnitude of a vector is the sqrt of its own dotproduct
 	dot_product(vec, vec).sqrt()
+}
+
+pub struct ScoreIndex {
+	pub score: f32,
+	pub index: usize,
+}
+
+impl PartialEq for ScoreIndex {
+	fn eq(&self, other: &Self) -> bool {
+		self.score.eq(&other.score)
+	}
+}
+
+impl Eq for ScoreIndex {}
+
+impl PartialOrd for ScoreIndex {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		// The comparison is intentionally reversed here to make the heap a min-heap
+		other.score.partial_cmp(&self.score)
+	}
+}
+
+impl Ord for ScoreIndex {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.partial_cmp(other).unwrap_or(Ordering::Equal)
+	}
 }

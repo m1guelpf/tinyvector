@@ -4,7 +4,6 @@ use lazy_static::lazy_static;
 use rayon::prelude::*;
 use schemars::JsonSchema;
 use std::{
-	cmp::Ordering,
 	collections::{BinaryHeap, HashMap},
 	fs,
 	path::PathBuf,
@@ -12,7 +11,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-use crate::similarity::{get_distance_fn, Distance};
+use crate::similarity::{get_distance_fn, Distance, ScoreIndex};
 
 lazy_static! {
 	pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
@@ -55,52 +54,28 @@ pub struct Collection {
 	pub embeddings: Vec<Embedding>,
 }
 
-struct ScoreIndex {
-	score: f32,
-	index: usize,
-}
-
-impl PartialEq for ScoreIndex {
-	fn eq(&self, other: &Self) -> bool {
-		self.score.eq(&other.score)
-	}
-}
-
-impl Eq for ScoreIndex {}
-
-impl PartialOrd for ScoreIndex {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		self.score.partial_cmp(&other.score)
-	}
-}
-
-impl Ord for ScoreIndex {
-	fn cmp(&self, other: &Self) -> Ordering {
-		self.partial_cmp(other).unwrap_or(Ordering::Equal)
-	}
-}
-
 impl Collection {
 	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
 		let distance_fn = get_distance_fn(self.distance);
 
-		let heaps: Vec<BinaryHeap<ScoreIndex>> = self
+		let heaps = self
 			.embeddings
 			.par_iter()
 			.enumerate()
-			.map(|(i, embedding)| {
+			.map(|(index, embedding)| {
 				let mut heap = BinaryHeap::new();
 				let score = distance_fn(&embedding.vector, query);
-				heap.push(ScoreIndex { score, index: i });
+				heap.push(ScoreIndex { score, index });
 				heap
 			})
-			.collect();
+			.collect::<Vec<_>>();
 
 		let mut merged_heap = BinaryHeap::new();
 		for heap in heaps {
 			for score_index in heap {
 				if merged_heap.len() < k || score_index < *merged_heap.peek().unwrap() {
 					merged_heap.push(score_index);
+
 					if merged_heap.len() > k {
 						merged_heap.pop();
 					}
