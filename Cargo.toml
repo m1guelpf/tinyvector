@@ -6,9 +6,9 @@ name = "tinyvector"
 readme = "README.md"
 categories = ["science", "database-implementations"]
 repository = "https://github.com/m1guelpf/tinyvector"
+description = "A tiny embedding database in pure Rust."
 authors = ["Miguel Piedrafita <soy@miguelpiedrafita.com>"]
 keywords = ["database", "nearest-neighbor", "embedding", "sqlite"]
-description = "A tiny nearest-neighbor embedding database built with SQLite."
 
 [dependencies]
 rayon = "1.7.0"
