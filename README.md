@@ -4,7 +4,7 @@
 
 
 <p align="center">
-    <b>tinyvector - the tiny, least-dumb, speedy vector embedding database</b>. <br /><br />
+    <b>tinyvector - a tiny embedding database in pure Rust</b> <br /><br />
     <a href="https://crates.io/crates/tinyvector"><img src="https://img.shields.io/crates/v/tinyvector" ></a> <a href="https://github.com/m1guelpf/tinyvector/actions/workflows/build"><img src="https://github.com/m1guelpf/tinyvector/actions/workflows/build.yaml/badge.svg" ></a>  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" ></a>
 </p>
 <hr />
