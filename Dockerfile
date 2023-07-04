@@ -16,4 +16,8 @@ WORKDIR /tinyvector
 COPY --from=builder /tinyvector/target/release/tinyvector /usr/local/bin
 
 EXPOSE 8000
+VOLUME ["/storage"]
 ENTRYPOINT ["/usr/local/bin/tinyvector"]
+
+HEALTHCHECK --interval=5m \
+    CMD curl -f http://localhost:8000/ || exit 1
