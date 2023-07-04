@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp;
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub enum Distance {
 	#[serde(rename = "euclidean")]
 	Euclidean,
@@ -12,7 +12,7 @@ pub enum Distance {
 	DotProduct,
 }
 
-pub fn get_distance_fn(metric: &Distance) -> impl Fn(&[f32], &[f32]) -> f32 {
+pub fn get_distance_fn(metric: Distance) -> impl Fn(&[f32], &[f32]) -> f32 {
 	match metric {
 		Distance::DotProduct => dot_product,
 		Distance::Cosine => cosine_similarity,

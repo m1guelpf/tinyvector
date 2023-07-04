@@ -1,8 +1,15 @@
 use anyhow::Context;
 use axum::Extension;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use schemars::JsonSchema;
-use std::{cmp::Ordering, collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{
+	cmp::Ordering,
+	collections::{BinaryHeap, HashMap},
+	fs,
+	path::PathBuf,
+	sync::Arc,
+};
 use tokio::sync::RwLock;
 
 use crate::similarity::{get_distance_fn, Distance};
@@ -48,26 +55,65 @@ pub struct Collection {
 	pub embeddings: Vec<Embedding>,
 }
 
+struct ScoreIndex {
+	score: f32,
+	index: usize,
+}
+
+impl PartialEq for ScoreIndex {
+	fn eq(&self, other: &Self) -> bool {
+		self.score.eq(&other.score)
+	}
+}
+
+impl Eq for ScoreIndex {}
+
+impl PartialOrd for ScoreIndex {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		self.score.partial_cmp(&other.score)
+	}
+}
+
+impl Ord for ScoreIndex {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.partial_cmp(other).unwrap_or(Ordering::Equal)
+	}
+}
+
 impl Collection {
 	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
-		let mut scores = Vec::with_capacity(self.embeddings.len());
+		let distance_fn = get_distance_fn(self.distance);
 
-		let distance_fn = get_distance_fn(&self.distance);
-		for embedding in &self.embeddings {
-			scores.push(distance_fn(&embedding.vector, query));
+		let heaps: Vec<BinaryHeap<ScoreIndex>> = self
+			.embeddings
+			.par_iter()
+			.enumerate()
+			.map(|(i, embedding)| {
+				let mut heap = BinaryHeap::new();
+				let score = distance_fn(&embedding.vector, query);
+				heap.push(ScoreIndex { score, index: i });
+				heap
+			})
+			.collect();
+
+		let mut merged_heap = BinaryHeap::new();
+		for heap in heaps {
+			for score_index in heap {
+				if merged_heap.len() < k || score_index < *merged_heap.peek().unwrap() {
+					merged_heap.push(score_index);
+					if merged_heap.len() > k {
+						merged_heap.pop();
+					}
+				}
+			}
 		}
 
-		let mut partitioned_indices: Vec<usize> = (0..scores.len()).collect();
-		partitioned_indices.sort_unstable_by(|&a, &b| {
-			scores[b].partial_cmp(&scores[a]).unwrap_or(Ordering::Equal)
-		});
-
-		partitioned_indices
-			.iter()
-			.take(k)
-			.map(|&i| SimilarityResult {
-				score: scores[i],
-				embedding: self.embeddings[i].clone(),
+		merged_heap
+			.into_sorted_vec()
+			.into_iter()
+			.map(|ScoreIndex { score, index }| SimilarityResult {
+				score,
+				embedding: self.embeddings[index].clone(),
 			})
 			.collect()
 	}
