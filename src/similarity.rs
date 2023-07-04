@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum Distance {
 	#[serde(rename = "euclidean")]
 	Euclidean,
@@ -15,9 +15,7 @@ pub enum Distance {
 pub fn get_cache_attr(metric: Distance, vec: &[f32]) -> f32 {
 	match metric {
 		// Dot product doesn't allow any caching
-		Distance::DotProduct => 0.0,
-		// Precompute the sum of squares of the vector
-		Distance::Euclidean => vec.iter().map(|x| x.powi(2)).sum(),
+		Distance::DotProduct | Distance::Euclidean => 0.0,
 		// Precompute the magnitude of the vector
 		Distance::Cosine => vec.iter().map(|&x| x.powi(2)).sum::<f32>().sqrt(),
 	}
@@ -25,9 +23,9 @@ pub fn get_cache_attr(metric: Distance, vec: &[f32]) -> f32 {
 
 pub fn get_distance_fn(metric: Distance) -> impl Fn(&[f32], &[f32], f32) -> f32 {
 	match metric {
-		Distance::DotProduct => dot_product,
-		Distance::Cosine => cosine_similarity,
 		Distance::Euclidean => euclidian_distance,
+		// We use dot product for cosine because we've normalized the vectors on insertion
+		Distance::Cosine | Distance::DotProduct => dot_product,
 	}
 }
 
@@ -46,25 +44,18 @@ fn euclidian_distance(a: &[f32], b: &[f32], a_sum_squares: f32) -> f32 {
 		.sqrt()
 }
 
-fn cosine_similarity(a: &[f32], b: &[f32], mag_a: f32) -> f32 {
-	let mut dot_product = 0.0;
-	let mut mag_b = 0.0;
-
-	for (i, j) in a.iter().zip(b) {
-		dot_product += i * j;
-		mag_b += j.powi(2);
-	}
-
-	let mag_b = mag_b.sqrt();
-	if mag_a == 0.0 || mag_b == 0.0 {
-		0.0
-	} else {
-		dot_product / (mag_a * mag_b)
-	}
-}
-
 fn dot_product(a: &[f32], b: &[f32], _: f32) -> f32 {
 	a.iter().zip(b).fold(0.0, |acc, (x, y)| acc + x * y)
+}
+
+pub fn normalize(vec: &[f32]) -> Vec<f32> {
+	let magnitude = (vec.iter().fold(0.0, |acc, &val| val.mul_add(val, acc))).sqrt();
+
+	if magnitude > std::f32::EPSILON {
+		vec.iter().map(|&val| val / magnitude).collect()
+	} else {
+		vec.to_vec()
+	}
 }
 
 pub struct ScoreIndex {

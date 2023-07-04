@@ -11,7 +11,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-use crate::similarity::{get_cache_attr, get_distance_fn, Distance, ScoreIndex};
+use crate::similarity::{get_cache_attr, get_distance_fn, normalize, Distance, ScoreIndex};
 
 lazy_static! {
 	pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
@@ -147,7 +147,7 @@ impl Db {
 	pub fn insert_into_collection(
 		&mut self,
 		collection_name: &str,
-		embedding: Embedding,
+		mut embedding: Embedding,
 	) -> Result<(), Error> {
 		let collection = self
 			.collections
@@ -160,6 +160,11 @@ impl Db {
 
 		if embedding.vector.len() != collection.dimension {
 			return Err(Error::DimensionMismatch);
+		}
+
+		// Normalize the vector if the distance metric is cosine, so we can use dot product later
+		if collection.distance == Distance::Cosine {
+			embedding.vector = normalize(&embedding.vector);
 		}
 
 		collection.embeddings.push(embedding);
