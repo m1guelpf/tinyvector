@@ -59,33 +59,28 @@ impl Collection {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
-		let heaps = self
+		let scores = self
 			.embeddings
 			.par_iter()
 			.enumerate()
 			.map(|(index, embedding)| {
-				let mut heap = BinaryHeap::new();
 				let score = distance_fn(&embedding.vector, query, memo_attr);
-				heap.push(ScoreIndex { score, index });
-				heap
+				ScoreIndex { score, index }
 			})
 			.collect::<Vec<_>>();
 
-		let mut merged_heap = BinaryHeap::new();
-		for heap in heaps {
-			for score_index in heap {
-				if merged_heap.len() < k || score_index < *merged_heap.peek().unwrap() {
-					merged_heap.push(score_index);
+		let mut heap = BinaryHeap::new();
+		for score_index in scores {
+			if heap.len() < k || score_index < *heap.peek().unwrap() {
+				heap.push(score_index);
 
-					if merged_heap.len() > k {
-						merged_heap.pop();
-					}
+				if heap.len() > k {
+					heap.pop();
 				}
 			}
 		}
 
-		merged_heap
-			.into_sorted_vec()
+		heap.into_sorted_vec()
 			.into_iter()
 			.map(|ScoreIndex { score, index }| SimilarityResult {
 				score,
