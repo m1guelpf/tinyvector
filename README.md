@@ -1,7 +1,13 @@
 <p align="center">
-    <b>tinyvector - the tiny, least-dumb, speedy vector embedding database</b>. <br />
-    🦀 rewrite of <a href="https://github.com/0hq/tinyvector">0hq's tinyvector</a>
+  <img src="https://github.com/m1guelpf/tinyvector/assets/23558090/512ff4ad-49fd-43ec-b3bd-57365b920078" alt="tinyvector logo">
 </p>
+
+
+<p align="center">
+    <b>tinyvector - the tiny, least-dumb, speedy vector embedding database</b>. <br /><br />
+    <a href="https://crates.io/crates/tinyvector"><img src="https://img.shields.io/crates/v/tinyvector" ></a> <a href="https://github.com/m1guelpf/tinyvector/actions/workflows/build"><img src="https://github.com/m1guelpf/tinyvector/actions/workflows/build.yaml/badge.svg" ></a>  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" ></a>
+</p>
+<hr />
 
 ## Features
 - __Tiny__: It's in the name. It's literally just an axum server. Extremely easy to customize, around 600 lines of code.
@@ -28,6 +34,10 @@ What are embeddings?
 
 Read OpenAI's [explanation](https://platform.openai.com/docs/guides/embeddings/what-are-embeddings).
 
+## Acknowledgements
+
+- Will Depue's [tinyvector](https://twitter.com/willdepue/status/1675796236304252928) (python+sqlite+numpy) inspired this project (and the name). Will also contributed plenty of ideas to optimize performance.
+
 ## License
 
-[MIT](./LICENSE)
+This project is open-sourced under the MIT license. See [the License file](LICENSE) for more information.
