@@ -25,6 +25,7 @@ aide = { version = "0.11.0", features = ["axum"] }
 tokio = { version = "1.29.1", features = ["full"] }
 axum-jsonschema = { version = "0.6.0", features = ["aide"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tower-http = { version = "0.4.1", features = ["validate-request", "auth"] }
 
 [build-dependencies]
 chrono = "0.4.26"

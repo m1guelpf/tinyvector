@@ -4,6 +4,7 @@ use aide::axum::{
 };
 use axum::{extract::Path, http::StatusCode, Extension};
 use axum_jsonschema::Json;
+use tower_http::validate_request::ValidateRequestHeaderLayer;
 use schemars::JsonSchema;
 use std::time::Instant;
 
@@ -13,16 +14,26 @@ use crate::{
 	similarity::Distance,
 };
 
+const API_KEY: Option<&str> = option_env!("API_KEY");
+
 pub fn handler() -> ApiRouter {
-	ApiRouter::new().nest(
+	let api_key_layer = ValidateRequestHeaderLayer::bearer(API_KEY.unwrap_or(""));
+
+	let route = ApiRouter::new().nest(
 		"/collections",
 		ApiRouter::new()
 			.api_route("/:collection_name", put(create_collection))
 			.api_route("/:collection_name", post(query_collection))
 			.api_route("/:collection_name", get(get_collection_info))
 			.api_route("/:collection_name", delete(delete_collection))
-			.api_route("/:collection_name/insert", post(insert_into_collection)),
-	)
+			.api_route("/:collection_name/insert", post(insert_into_collection))
+	);
+
+	if API_KEY.is_some() {
+		route.layer(api_key_layer)
+	} else {
+		route
+	}
 }
 
 /// Create a new collection
