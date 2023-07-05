@@ -9,14 +9,15 @@
 <hr />
 
 ## ✨ Features
-- __Tiny__: It's in the name. It's literally just an axum server. Extremely easy to customize, around 600 lines of code.
-- __Fast__: Tinyvector should have comparable speed to advanced vector databases when it comes on small to medium datasets, and slightly better accuracy.
-- __Vertically Scales__: Tinyvector stores all indexes in memory for fast querying. Very easy to scale up to 100 million+ vector dimensions without issue.
-- __Open Source__: MIT Licensed, free forever.
+- **Tiny**: It's in the name. It's literally just an axum server. Extremely easy to customize, around 600 lines of code.
+- **Fast**: Tinyvector _should_ have comparable speed to advanced vector databases when it comes on small to medium datasets, and slightly better accuracy.
+- **Vertically Scales**: Tinyvector stores all indexes in memory for fast querying. Very easy to scale up to 100 million+ vector dimensions without issue.
+- **Open Source**: MIT Licensed, free forever.
 
 ### Soon
-- __Integrated Models__: Soon you won't have to bring your own vectors, just generate them on the server automaticaly. Will support SBert, Hugging Face models, OpenAI, Cohere, etc.
-- __Python/JS Client__: We'll add a comprehensive Python and Javascript package for easy integration with tinyvector in the next two weeks.
+- **Powerful Queries**: Allow filtering by the provided vector metadata without slowing the search down.
+- **Integrated Models**: Soon you won't have to bring your own vectors, just generate them on the server automaticaly. Aiming to support support SBert, Hugging Face models, OpenAI, Cohere, etc.
+- **Typescript/Python Libraries**: Should be able to auto-generate pretty good clients using the included OpenAPI schema.
 
 ## 🚀 Getting Started
 
