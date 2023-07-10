@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::{HashMap}};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 
@@ -9,28 +9,30 @@ pub enum Operation {
 	And,
 	#[serde(rename = "or")]
 	Or,
-    #[serde(rename = "eq")]
+	#[serde(rename = "eq")]
 	Eq,
 	#[serde(rename = "ne")]
 	Ne,
 	#[serde(rename = "gt")]
 	Gt,
-    #[serde(rename = "gte")]
+	#[serde(rename = "gte")]
 	Gte,
-    #[serde(rename = "lt")]
+	#[serde(rename = "lt")]
 	Lt,
-    #[serde(rename = "lte")]
+	#[serde(rename = "lte")]
 	Lte,
+}
+
+enum OpSide {
+	String(String),
+	Comparator(&Comparator),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct Comparator {
-	/// Dimension of the vectors in the collection
-	pub attribute: String,
-    /// Distance metric used for querying
+	pub lhs: OpSide,
 	pub op: Operation,
-	/// Embeddings in the collection
-	pub value: String,
+	pub rhs: OpSide,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -39,10 +41,8 @@ pub enum Error {
 	InvalidFilter,
 }
 
-
-
 pub fn parse(input: Option<HashMap<String, String>>) -> Option<Comparator> {
-    match input {
+	match input {
 		Some(input) => match input {
 			"$and" => {},
 			"$or" => {},
@@ -58,17 +58,17 @@ pub fn parse(input: Option<HashMap<String, String>>) -> Option<Comparator> {
 	}
 }
 
-fn get_operation_fn(op: Operation) -> impl Fn(String | bool, String | bool) -> bool {
+fn get_operation_fn(op: Operation) -> impl Fn(String, String) -> bool {
 	match op {
 		Operation::And => and,
 		Operation::Or => or,
 		Operation::Eq => eq,
 		Operation::Ne => ne,
-        Operation::Gt => gt,
-        Operation::Gte => gte,
-        Operation::Lt => lt,
-        Operation::Lte => lte,
-    }
+		Operation::Gt => gt,
+		Operation::Gte => gte,
+		Operation::Lt => lt,
+		Operation::Lte => lte,
+	}
 }
 
 fn and(lhs: bool, rhs: bool) -> bool { lhs && rhs }

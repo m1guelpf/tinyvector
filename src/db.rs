@@ -55,7 +55,7 @@ pub struct Collection {
 }
 
 impl Collection {
-	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
+	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult>  {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
@@ -63,6 +63,7 @@ impl Collection {
 			.embeddings
 			.par_iter()
 			.enumerate()
+			// .filter()
 			.map(|(index, embedding)| {
 				let score = distance_fn(&embedding.vector, query, memo_attr);
 				ScoreIndex { score, index }

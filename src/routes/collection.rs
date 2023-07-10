@@ -5,11 +5,13 @@ use aide::axum::{
 use axum::{extract::Path, http::StatusCode, Extension};
 use axum_jsonschema::Json;
 use schemars::JsonSchema;
+use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::{
 	db::{self, Collection, DbExtension, Embedding, Error as DbError, SimilarityResult},
 	errors::HTTPError,
+	search::Error as SearchError,
 	similarity::Distance,
 };
 
@@ -56,6 +58,8 @@ struct QueryCollectionQuery {
 	query: Vec<f32>,
 	/// Number of results to return
 	k: Option<usize>,
+	/// Filter results by metadata
+	filter: Option<HashMap<String, String>>,
 }
 
 /// Query a collection
@@ -76,8 +80,16 @@ async fn query_collection(
 		return Err(HTTPError::new("Query dimension mismatch").with_status(StatusCode::BAD_REQUEST));
 	}
 
+	// if (req.filter.is_some()) 
+		// match  {
+		// 	Ok(_) => Ok(Json()),
+		// 	Err(_) => Err(HTTPError::new(
+		// 		"Metadata filter is incorrectly formatted"
+		// 	).with_status(StatusCode::BAD_REQUEST)),
+		// }
+
 	let instant = Instant::now();
-	let results = collection.get_similarity(&req.query, req.k.unwrap_or(1));
+	let results = collection.get_similarity(&req.query, req.k.unwrap_or(1), req.filter);
 	drop(db);
 
 	tracing::trace!("Query to {collection_name} took {:?}", instant.elapsed());
@@ -125,7 +137,6 @@ async fn delete_collection(
 	tracing::trace!("Deleting collection {collection_name}");
 
 	let mut db = db.write().await;
-
 	let delete_result = db.delete_collection(&collection_name);
 	drop(db);
 
