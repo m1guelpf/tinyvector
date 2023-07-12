@@ -12,6 +12,7 @@ use std::{
 use tokio::sync::RwLock;
 
 use crate::similarity::{get_cache_attr, get_distance_fn, normalize, Distance, ScoreIndex};
+use crate::search::Filter;
 
 lazy_static! {
 	pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
@@ -55,7 +56,7 @@ pub struct Collection {
 }
 
 impl Collection {
-	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult>  {
+	pub fn get_similarity(&self, query: &[f32], k: usize, comparate: Option<Filter>) -> Vec<SimilarityResult>  {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
@@ -63,7 +64,17 @@ impl Collection {
 			.embeddings
 			.par_iter()
 			.enumerate()
-			// .filter()
+			.filter(|(_, embedding)| {
+				if let Some(comparate) = &comparate {
+					if let Some(metadata) = &embedding.metadata {
+						if let Some(value) = metadata.get(&comparate.key) {
+							return comparate.filter(value);
+						}
+					}
+				}
+
+				true
+			})
 			.map(|(index, embedding)| {
 				let score = distance_fn(&embedding.vector, query, memo_attr);
 				ScoreIndex { score, index }

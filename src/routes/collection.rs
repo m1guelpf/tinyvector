@@ -5,13 +5,12 @@ use aide::axum::{
 use axum::{extract::Path, http::StatusCode, Extension};
 use axum_jsonschema::Json;
 use schemars::JsonSchema;
-use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::{
 	db::{self, Collection, DbExtension, Embedding, Error as DbError, SimilarityResult},
 	errors::HTTPError,
-	search::Error as SearchError,
+	search::{Error as SearchError, Comparator},
 	similarity::Distance,
 };
 
@@ -59,7 +58,7 @@ struct QueryCollectionQuery {
 	/// Number of results to return
 	k: Option<usize>,
 	/// Filter results by metadata
-	filter: Option<HashMap<String, String>>,
+	comparator: Option<Comparator>,
 }
 
 /// Query a collection
