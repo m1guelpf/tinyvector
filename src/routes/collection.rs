@@ -10,7 +10,7 @@ use std::time::Instant;
 use crate::{
 	db::{self, Collection, DbExtension, Embedding, Error as DbError, SimilarityResult},
 	errors::HTTPError,
-	search::{Error as SearchError, Comparator},
+	search::Filter,
 	similarity::Distance,
 };
 
@@ -58,7 +58,7 @@ struct QueryCollectionQuery {
 	/// Number of results to return
 	k: Option<usize>,
 	/// Filter results by metadata
-	comparator: Option<Comparator>,
+	filter: Option<Filter>,
 }
 
 /// Query a collection
@@ -79,13 +79,6 @@ async fn query_collection(
 		return Err(HTTPError::new("Query dimension mismatch").with_status(StatusCode::BAD_REQUEST));
 	}
 
-	// if (req.filter.is_some()) 
-		// match  {
-		// 	Ok(_) => Ok(Json()),
-		// 	Err(_) => Err(HTTPError::new(
-		// 		"Metadata filter is incorrectly formatted"
-		// 	).with_status(StatusCode::BAD_REQUEST)),
-		// }
 
 	let instant = Instant::now();
 	let results = collection.get_similarity(&req.query, req.k.unwrap_or(1), req.filter);
