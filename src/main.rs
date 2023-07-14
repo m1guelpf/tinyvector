@@ -8,6 +8,7 @@ use tracing_subscriber::{
 mod db;
 mod errors;
 mod routes;
+mod search;
 mod server;
 mod shutdown;
 mod similarity;
