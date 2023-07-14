@@ -2,6 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+trait Compare {
+	fn compare(&self, metadata: &HashMap<String, String>) -> bool;
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum EqualityCompOp {
 	#[serde(rename = "eq")]
@@ -39,8 +43,17 @@ fn get_equality_comp_op_fn(op: EqualityCompOp) -> impl Fn(String, String) -> boo
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 
 pub struct Comparator {
+	pub metadata_field: String,
 	pub op: EqualityCompOp,
-	pub val: String,
+	pub comp_value: String,
+}
+
+impl Compare for Comparator {
+	fn compare(&self, metadata: &HashMap<String, String>) -> bool {
+		let metadata_value = metadata.get(&self.metadata_field).unwrap_or(&"".to_string());
+		let op = get_equality_comp_op_fn(self.op);
+		op(*metadata_value, self.comp_value)
+	}
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -64,19 +77,33 @@ fn get_logical_comp_op_fn(op: LogicalCompOp) -> impl Fn(bool, bool) -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct Logic {
-	pub lhs: Comparator,
+	pub lhs: Box<Filter>,
 	pub op: LogicalCompOp,
-	pub rhs: Comparator,
+	pub rhs: Box<Filter>,
+}
+
+impl Compare for Logic {
+	fn compare(&self, metadata: &HashMap<String, String>) -> bool {
+		let lhs = self.lhs.compare(metadata);
+		let rhs = self.rhs.compare(metadata);
+		let op = get_logical_comp_op_fn(self.op);
+		op(lhs, rhs)
+	}
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub enum FilterOp {
-	Comparator,
-	Logic,
+pub enum Filter {
+	Comparator(Comparator),
+	Logic(Logic),
 }
 
-pub struct Filter {
-	pub val: FilterType,
+impl Compare for Filter {
+	fn compare(&self, metadata: &HashMap<String, String>) -> bool {
+		match self {
+			Filter::Comparator(c) => c.compare(metadata),
+			Filter::Logic(l) => l.compare(metadata),
+		}
+	}
 }
 
 /***
@@ -120,53 +147,55 @@ pub enum Error {
 	InvalidFilter,
 }
 
+fn parse_logic_helper(input: HashMap<String, String>, key: &str) -> Result<Filter, Error> {
+	match input.get(key) {
+		Some(s) => { 
+			match parse(s) {
+				Ok(f) => { Ok(f) },
+				Err(_) => { Err(Error::InvalidFilter) }
+			}
+		},
+		None => { Err(Error::InvalidFilter) },
+	}
+}
+
+
+
+fn parse_logic(input: HashMap<String, String>, op: LogicalCompOp) -> Result<Filter, Error> {
+	let lhs = parse_logic_helper(input, "lhs");
+	let rhs = parse_logic_helper(input, "rhs");
+	Ok(Filter::Logic(Logic { lhs, op, rhs }))
+}
+
+fn parse_comparator(input: HashMap<String, String>, op: EqualityCompOp) -> Result<Filter, Error> {
+	fn parse_field(input: HashMap<String, String>, key: &str) -> Result<String, Error> {
+		match input.get(key) {
+			Some(s) => Ok(s.to_string()),
+			None => return Err(Error::InvalidFilter),
+		}
+	}
+
+	let metadata_field = match input.keys {
+		Some(s) => Ok(s.to_string()),
+		None => return Err(Error::InvalidFilter),
+	};
+	Ok(Filter::Comparator(Comparator { metadata_field, op: EqualityCompOp::Eq, comp_value }))
+}
+
 pub fn parse(input: HashMap<String, String>) -> Result<Filter, Error> {
 	if input.keys().len() != 1 {
 		return Err(Error::InvalidFilter);
 	}
 
 	match input.keys().next().unwrap().as_str() {
-		"$and" => {
-			let lhs = parse(input.get("lhs"));
-			let rhs = parse(input.get("rhs"));
-			Ok() // Logic { lhs, op: LogicalCompOp::And, rhs }
-		},
-		"$or" => {
-			let lhs = parse(input.get("lhs"));
-			let rhs = parse(input.get("rhs"));
-			let op = FilterOp::Logic(Logic { lhs, op: LogicalCompOp::Or, rhs });
-			Filter { op }
-		},
-		"$eq" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Eq);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Eq, val })
-		},
-		"$ne" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Ne);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Ne, val })
-		},
-		"$gt" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Gt);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Gt, val })
-		},
-		"$gte" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Gte);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Gte, val })
-		},
-		"$lt" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Lt);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Lt, val })
-		},
-		"$lte" => {
-			let op = get_equality_comp_op_fn(EqualityCompOp::Lte);
-			let val = input.get("val").unwrap().to_string();
-			Filter::Comparator(Comparator { op: EqualityCompOp::Lte, val })
-		},
+		"$and" => parse_logic(input.get("$and").unwrap().to_string(), LogicalCompOp::And),
+		"$or" => parse_logic(input.get("$or").unwrap().to_string(), LogicalCompOp::Or),
+		"$eq" => parse_comparator(input.get("$eq").unwrap().to_string(), EqualityCompOp::Eq),
+		"$ne" => parse_comparator(input.get("$ne").unwrap().to_string(), EqualityCompOp::Ne),
+		"$gt" => parse_comparator(input.get("$gt").unwrap().to_string(), EqualityCompOp::Gt),
+		"$gte" => parse_comparator(input.get("$gte").unwrap().to_string(), EqualityCompOp::Gte),
+		"$lt" => parse_comparator(input.get("$lt").unwrap().to_string(), EqualityCompOp::Lt),
+		"$lte" => parse_comparator(input.get("$lte").unwrap().to_string(), EqualityCompOp::Lte),
 		_ => Err(Error::InvalidFilter),
 	}
 }

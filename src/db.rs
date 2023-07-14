@@ -64,17 +64,12 @@ impl Collection {
 			.embeddings
 			.par_iter()
 			.enumerate()
-			// .filter(|(_, embedding)| {
-			// 	if let Some(comparate) = &comparate {
-			// 		if let Some(metadata) = &embedding.metadata {
-			// 			if let Some(value) = metadata.get(&comparate.key) {
-			// 				return comparate.filter(value);
-			// 			}
-			// 		}
-			// 	}
-
-			// 	true
-			// })
+			.filter(|(_, embedding)| {
+				match comparate {
+					Some(ref comparate) => (*comparate).compare(embedding),
+					_ => true,
+				}
+			})
 			.map(|(index, embedding)| {
 				let score = distance_fn(&embedding.vector, query, memo_attr);
 				ScoreIndex { score, index }
