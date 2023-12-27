@@ -20,12 +20,31 @@ pub fn handler() -> ApiRouter {
 	ApiRouter::new().nest(
 		"/collections",
 		ApiRouter::new()
+			.api_route("/", get(get_collections))
 			.api_route("/:collection_name", put(create_collection))
 			.api_route("/:collection_name", post(query_collection))
 			.api_route("/:collection_name", get(get_collection_info))
 			.api_route("/:collection_name", delete(delete_collection))
-			.api_route("/:collection_name/insert", post(insert_into_collection)),
+			.api_route("/:collection_name/insert", post(insert_into_collection))
+			.api_route("/:collection_name/embeddings", get(get_embeddings))
+			.api_route("/:collection_name/embeddings", post(query_embeddings))
+			.api_route("/:collection_name/embeddings", delete(delete_embeddings))
+			.api_route("/:collection_name/embeddings/:embedding_id", get(get_embedding))
+			.api_route("/:collection_name/embeddings/:embedding_id", delete(delete_embedding)),
 	)
+}
+
+/// Get collection names
+async fn get_collections(
+	Extension(db): DbExtension,
+) -> Result<Json<Vec<String>>, HTTPError> {
+	tracing::trace!("Getting collection names");
+
+	let db = db.read().await;
+
+	let results = db.list();
+
+	Ok(Json(results))
 }
 
 /// Create a new collection
@@ -168,5 +187,115 @@ async fn insert_into_collection(
 			"The provided vector has the wrong dimension",
 		)
 		.with_status(StatusCode::BAD_REQUEST)),
+	}
+}
+
+/// Query embeddings in a collection
+async fn get_embeddings(
+	Path(collection_name): Path<String>,
+	Extension(db): DbExtension,
+) -> Result<Json<Vec<String>>, HTTPError> {
+	tracing::trace!("Querying embeddings from collection {collection_name}");
+
+	let db = db.read().await;
+	let collection = db
+		.get_collection(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
+
+	let results = collection.list();
+	drop(db);
+
+	Ok(Json(results))
+}
+
+#[derive(Debug, serde::Deserialize, JsonSchema)]
+struct EmbeddingsQuery {
+	/// Metadata to filter with
+	filter: Vec<HashMap<String, String>>,
+	/// Number of results to return
+	k: Option<usize>,
+}
+
+/// Query embeddings in a collection
+async fn query_embeddings(
+	Path(collection_name): Path<String>,
+	Extension(db): DbExtension,
+	Json(req): Json<EmbeddingsQuery>,
+) -> Result<Json<Vec<Embedding>>, HTTPError> {
+	tracing::trace!("Querying embeddings from collection {collection_name}");
+
+	let db = db.read().await;
+	let collection = db
+		.get_collection(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
+
+	let instant = Instant::now();
+	let results = collection.get_by_metadata(&req.filter, req.k.unwrap_or(1));
+	drop(db);
+
+	tracing::trace!("Query embeddings from {collection_name} took {:?}", instant.elapsed());
+	Ok(Json(results))
+}
+
+/// Delete embeddings in a collection
+async fn delete_embeddings(
+	Path(collection_name): Path<String>,
+	Extension(db): DbExtension,
+	Json(req): Json<EmbeddingsQuery>,
+) -> Result<StatusCode, HTTPError> {
+	tracing::trace!("Querying embeddings from collection {collection_name}");
+
+	let mut db = db.write().await;
+	let collection = db
+		.get_collection_mut(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
+
+	collection.delete_by_metadata(&req.filter);
+	drop(db);
+
+	Ok(StatusCode::NO_CONTENT)
+}
+
+/// Get an embedding from a collection
+async fn get_embedding(
+	Path((collection_name, embedding_id)): Path<(String, String)>,
+	Extension(db): DbExtension,
+) -> Result<Json<Embedding>, HTTPError> {
+	tracing::trace!("Getting {embedding_id} from collection {collection_name}");
+
+	if embedding_id.len() == 0 {
+		return Err(HTTPError::new("Embedding identifier empty").with_status(StatusCode::BAD_REQUEST));
+	}
+
+	let db = db.read().await;
+	let collection = db
+		.get_collection(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
+
+	let embedding = collection
+		.get(&embedding_id)
+		.ok_or_else(|| HTTPError::new("Embedding not found").with_status(StatusCode::NOT_FOUND))?;
+
+	Ok(Json(embedding.to_owned()))
+}
+
+/// Delete an embedding from a collection
+async fn delete_embedding(
+	Path((collection_name, embedding_id)): Path<(String, String)>,
+	Extension(db): DbExtension,
+) -> Result<StatusCode, HTTPError> {
+	tracing::trace!("Removing embedding {embedding_id} from collection {collection_name}");
+
+	let mut db = db.write().await;
+	let collection = db
+		.get_collection_mut(&collection_name)
+		.ok_or_else(|| HTTPError::new("Collection not found").with_status(StatusCode::NOT_FOUND))?;
+
+	let delete_result = collection.delete(&embedding_id);
+	drop(db);
+
+	match delete_result {
+		true => Ok(StatusCode::NO_CONTENT),
+		false => Err(HTTPError::new("Embedding not found").with_status(StatusCode::NOT_FOUND)),
 	}
 }

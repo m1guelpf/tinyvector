@@ -55,6 +55,36 @@ pub struct Collection {
 }
 
 impl Collection {
+	pub fn list(&self) -> Vec<String> {
+		self
+			.embeddings
+			.iter()
+			.map(|e| e.id.to_owned())
+			.collect()
+	}
+
+	pub fn get(&self, id: &str) -> Option<&Embedding> {
+		self
+			.embeddings
+			.iter()
+			.find(|e| e.id == id)
+	}
+
+	pub fn get_by_metadata(&self, filter: &[HashMap<String, String>], k: usize) -> Vec<Embedding> {
+		self
+			.embeddings
+			.iter()
+			.filter_map(|embedding| {
+				if match_embedding(embedding, filter) {
+					Some(embedding.clone())
+				} else {
+					None
+				}
+			})
+			.take(k)
+			.collect()
+	}
+
 	pub fn get_by_metadata_and_similarity(&self, filter: &[HashMap<String, String>], query: &[f32], k: usize) -> Vec<SimilarityResult> {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
@@ -92,6 +122,41 @@ impl Collection {
 			})
 			.collect()
 	}
+
+	pub fn delete(&mut self, id: &str) -> bool {
+		let index_opt = self.embeddings
+			.iter()
+			.position(|e| e.id == id);
+
+		match index_opt {
+			None => false,
+			Some(index) => { self.embeddings.remove(index); true }
+		}
+	}
+
+	pub fn delete_by_metadata(&mut self, filter: &[HashMap<String, String>]) {
+		if filter.len() == 0 {
+			self.embeddings.clear();
+			return
+		}
+
+		let indexes = self
+			.embeddings
+			.par_iter()
+			.enumerate()
+			.filter_map(|(index, embedding)| {
+				if match_embedding(embedding, filter) {
+					Some(index)
+				} else {
+					None
+				}
+			})
+			.collect::<Vec<_>>();
+
+		for index in indexes {
+			self.embeddings.remove(index);
+		}
+	}
 }
 
 fn match_embedding(embedding: &Embedding, filter: &[HashMap<String, String>]) -> bool {
@@ -104,7 +169,7 @@ fn match_embedding(embedding: &Embedding, filter: &[HashMap<String, String>]) ->
 		// no metadata in an embedding cannot be matched by a not empty filter
 		None => false,
 		Some(metadata) => {
-			// enumerate criteria with OR semantics; look for the first one matching
+				// enumerate criteria with OR semantics; look for the first one matching
 			for criteria in filter {
 				let mut matches = true;
 				// enumerate entries with AND semantics; look for the first one failing
@@ -209,6 +274,18 @@ impl Db {
 
 	pub fn get_collection(&self, name: &str) -> Option<&Collection> {
 		self.collections.get(name)
+	}
+
+	pub fn get_collection_mut(&mut self, name: &str) -> Option<&mut Collection> {
+		self.collections.get_mut(name)
+	}
+
+	pub fn list(&self) -> Vec<String> {
+		self
+			.collections
+			.keys()
+			.map(|name| name.to_owned())
+			.collect()
 	}
 
 	fn load_from_store() -> anyhow::Result<Self> {
