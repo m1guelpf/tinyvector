@@ -34,12 +34,15 @@ pub enum Error {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Db {
+	/// Collections in the database
 	pub collections: HashMap<String, Collection>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct SimilarityResult {
+	/// Similarity score
 	score: f32,
+	/// Matching embedding
 	embedding: Embedding,
 }
 
@@ -197,8 +200,11 @@ fn match_embedding(embedding: &Embedding, filter: &[HashMap<String, String>]) ->
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Embedding {
+	/// Unique identifier
 	pub id: String,
+	/// Vector computed from a text chunk
 	pub vector: Vec<f32>,
+	/// Metadata about the source text
 	pub metadata: Option<HashMap<String, String>>,
 }
 

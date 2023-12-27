@@ -25,10 +25,10 @@ pub fn handler() -> ApiRouter {
 			.api_route("/:collection_name", post(query_collection))
 			.api_route("/:collection_name", get(get_collection_info))
 			.api_route("/:collection_name", delete(delete_collection))
-			.api_route("/:collection_name/insert", post(insert_into_collection))
 			.api_route("/:collection_name/embeddings", get(get_embeddings))
 			.api_route("/:collection_name/embeddings", post(query_embeddings))
 			.api_route("/:collection_name/embeddings", delete(delete_embeddings))
+			.api_route("/:collection_name/embeddings/:embedding_id", put(insert_into_collection))
 			.api_route("/:collection_name/embeddings/:embedding_id", get(get_embedding))
 			.api_route("/:collection_name/embeddings/:embedding_id", delete(delete_embedding)),
 	)
@@ -162,16 +162,29 @@ async fn delete_collection(
 	}
 }
 
+#[derive(Debug, serde::Deserialize, JsonSchema)]
+struct EmbeddingData {
+	/// Vector computed from a text chunk
+	vector: Vec<f32>,
+	/// Metadata about the source text
+	metadata: Option<HashMap<String, String>>,
+}
+
 /// Insert a vector into a collection
 async fn insert_into_collection(
-	Path(collection_name): Path<String>,
+	Path((collection_name, embedding_id)): Path<(String, String)>,
 	Extension(db): DbExtension,
-	Json(embedding): Json<Embedding>,
+	Json(embedding_data): Json<EmbeddingData>,
 ) -> Result<StatusCode, HTTPError> {
 	tracing::trace!("Inserting into collection {collection_name}");
 
 	let mut db = db.write().await;
 
+	let embedding = Embedding {
+		id: embedding_id,
+		vector: embedding_data.vector,
+		metadata: embedding_data.metadata,
+	};
 	let insert_result = db.insert_into_collection(&collection_name, embedding);
 	drop(db);
 
@@ -262,10 +275,6 @@ async fn get_embedding(
 	Extension(db): DbExtension,
 ) -> Result<Json<Embedding>, HTTPError> {
 	tracing::trace!("Getting {embedding_id} from collection {collection_name}");
-
-	if embedding_id.len() == 0 {
-		return Err(HTTPError::new("Embedding identifier empty").with_status(StatusCode::BAD_REQUEST));
-	}
 
 	let db = db.read().await;
 	let collection = db
