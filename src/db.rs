@@ -55,7 +55,7 @@ pub struct Collection {
 }
 
 impl Collection {
-	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
+	pub fn get_by_metadata_and_similarity(&self, filter: &[HashMap<String, String>], query: &[f32], k: usize) -> Vec<SimilarityResult> {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
@@ -63,9 +63,13 @@ impl Collection {
 			.embeddings
 			.par_iter()
 			.enumerate()
-			.map(|(index, embedding)| {
-				let score = distance_fn(&embedding.vector, query, memo_attr);
-				ScoreIndex { score, index }
+			.filter_map(|(index, embedding)| {
+				if match_embedding(embedding, filter) {
+					let score = distance_fn(&embedding.vector, query, memo_attr);
+					Some(ScoreIndex { score, index })
+				} else {
+					None
+				}
 			})
 			.collect::<Vec<_>>();
 
@@ -87,6 +91,42 @@ impl Collection {
 				embedding: self.embeddings[index].clone(),
 			})
 			.collect()
+	}
+}
+
+fn match_embedding(embedding: &Embedding, filter: &[HashMap<String, String>]) -> bool {
+	// an empty filter matches any embedding
+	if filter.len() == 0 {
+		return true
+	}
+
+	match &embedding.metadata {
+		// no metadata in an embedding cannot be matched by a not empty filter
+		None => false,
+		Some(metadata) => {
+			// enumerate criteria with OR semantics; look for the first one matching
+			for criteria in filter {
+				let mut matches = true;
+				// enumerate entries with AND semantics; look for the first one failing
+				for (key, expected) in criteria {
+					let found = match metadata.get(key) {
+						None => false,
+						Some(actual) => actual == expected
+					};
+					// a not matching entry means the whole embedding not matching
+					if !found {
+						matches = false;
+						break
+					}
+				}
+				// all entries matching mean the whole embedding matching
+				if matches {
+					return true
+				}
+			}
+			// no match found
+			false
+		}
 	}
 }
 

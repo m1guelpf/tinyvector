@@ -5,7 +5,10 @@ use aide::axum::{
 use axum::{extract::Path, http::StatusCode, Extension};
 use axum_jsonschema::Json;
 use schemars::JsonSchema;
-use std::time::Instant;
+use std::{
+	collections::HashMap,
+	time::Instant,
+};
 
 use crate::{
 	db::{self, Collection, DbExtension, Embedding, Error as DbError, SimilarityResult},
@@ -54,6 +57,8 @@ async fn create_collection(
 struct QueryCollectionQuery {
 	/// Vector to query with
 	query: Vec<f32>,
+	/// Metadata to filter with
+	filter: Option<Vec<HashMap<String, String>>>,
 	/// Number of results to return
 	k: Option<usize>,
 }
@@ -77,7 +82,7 @@ async fn query_collection(
 	}
 
 	let instant = Instant::now();
-	let results = collection.get_similarity(&req.query, req.k.unwrap_or(1));
+	let results = collection.get_by_metadata_and_similarity(&req.filter.unwrap_or_default(), &req.query, req.k.unwrap_or(1));
 	drop(db);
 
 	tracing::trace!("Query to {collection_name} took {:?}", instant.elapsed());
