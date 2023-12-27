@@ -34,12 +34,15 @@ pub enum Error {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Db {
+	/// Collections in the database
 	pub collections: HashMap<String, Collection>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct SimilarityResult {
+	/// Similarity score
 	score: f32,
+	/// Matching embedding
 	embedding: Embedding,
 }
 
@@ -55,7 +58,37 @@ pub struct Collection {
 }
 
 impl Collection {
-	pub fn get_similarity(&self, query: &[f32], k: usize) -> Vec<SimilarityResult> {
+	pub fn list(&self) -> Vec<String> {
+		self
+			.embeddings
+			.iter()
+			.map(|e| e.id.to_owned())
+			.collect()
+	}
+
+	pub fn get(&self, id: &str) -> Option<&Embedding> {
+		self
+			.embeddings
+			.iter()
+			.find(|e| e.id == id)
+	}
+
+	pub fn get_by_metadata(&self, filter: &[HashMap<String, String>], k: usize) -> Vec<Embedding> {
+		self
+			.embeddings
+			.iter()
+			.filter_map(|embedding| {
+				if match_embedding(embedding, filter) {
+					Some(embedding.clone())
+				} else {
+					None
+				}
+			})
+			.take(k)
+			.collect()
+	}
+
+	pub fn get_by_metadata_and_similarity(&self, filter: &[HashMap<String, String>], query: &[f32], k: usize) -> Vec<SimilarityResult> {
 		let memo_attr = get_cache_attr(self.distance, query);
 		let distance_fn = get_distance_fn(self.distance);
 
@@ -63,9 +96,13 @@ impl Collection {
 			.embeddings
 			.par_iter()
 			.enumerate()
-			.map(|(index, embedding)| {
-				let score = distance_fn(&embedding.vector, query, memo_attr);
-				ScoreIndex { score, index }
+			.filter_map(|(index, embedding)| {
+				if match_embedding(embedding, filter) {
+					let score = distance_fn(&embedding.vector, query, memo_attr);
+					Some(ScoreIndex { score, index })
+				} else {
+					None
+				}
 			})
 			.collect::<Vec<_>>();
 
@@ -88,12 +125,86 @@ impl Collection {
 			})
 			.collect()
 	}
+
+	pub fn delete(&mut self, id: &str) -> bool {
+		let index_opt = self.embeddings
+			.iter()
+			.position(|e| e.id == id);
+
+		match index_opt {
+			None => false,
+			Some(index) => { self.embeddings.remove(index); true }
+		}
+	}
+
+	pub fn delete_by_metadata(&mut self, filter: &[HashMap<String, String>]) {
+		if filter.len() == 0 {
+			self.embeddings.clear();
+			return
+		}
+
+		let indexes = self
+			.embeddings
+			.par_iter()
+			.enumerate()
+			.filter_map(|(index, embedding)| {
+				if match_embedding(embedding, filter) {
+					Some(index)
+				} else {
+					None
+				}
+			})
+			.collect::<Vec<_>>();
+
+		for index in indexes {
+			self.embeddings.remove(index);
+		}
+	}
+}
+
+fn match_embedding(embedding: &Embedding, filter: &[HashMap<String, String>]) -> bool {
+	// an empty filter matches any embedding
+	if filter.len() == 0 {
+		return true
+	}
+
+	match &embedding.metadata {
+		// no metadata in an embedding cannot be matched by a not empty filter
+		None => false,
+		Some(metadata) => {
+				// enumerate criteria with OR semantics; look for the first one matching
+			for criteria in filter {
+				let mut matches = true;
+				// enumerate entries with AND semantics; look for the first one failing
+				for (key, expected) in criteria {
+					let found = match metadata.get(key) {
+						None => false,
+						Some(actual) => actual == expected
+					};
+					// a not matching entry means the whole embedding not matching
+					if !found {
+						matches = false;
+						break
+					}
+				}
+				// all entries matching mean the whole embedding matching
+				if matches {
+					return true
+				}
+			}
+			// no match found
+			false
+		}
+	}
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Embedding {
+	/// Unique identifier
 	pub id: String,
+	/// Vector computed from a text chunk
 	pub vector: Vec<f32>,
+	/// Metadata about the source text
 	pub metadata: Option<HashMap<String, String>>,
 }
 
@@ -169,6 +280,18 @@ impl Db {
 
 	pub fn get_collection(&self, name: &str) -> Option<&Collection> {
 		self.collections.get(name)
+	}
+
+	pub fn get_collection_mut(&mut self, name: &str) -> Option<&mut Collection> {
+		self.collections.get_mut(name)
+	}
+
+	pub fn list(&self) -> Vec<String> {
+		self
+			.collections
+			.keys()
+			.map(|name| name.to_owned())
+			.collect()
 	}
 
 	fn load_from_store() -> anyhow::Result<Self> {
