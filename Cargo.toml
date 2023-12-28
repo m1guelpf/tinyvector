@@ -26,7 +26,6 @@ tokio = { version = "1.35.1", features = ["full"] }
 axum-jsonschema = { version = "0.8.0", features = ["aide"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 axum-server = "0.6.0"
-once_cell = "1.19.0"
 
 [build-dependencies]
 chrono = "0.4.31"

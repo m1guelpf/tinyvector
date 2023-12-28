@@ -1,11 +1,13 @@
 use axum_server::Handle;
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 use tokio::{signal, time::Duration};
 
-static HANDLE: Lazy<Handle> = Lazy::new(|| Handle::new());
+lazy_static! {
+	static ref HANDLE: Handle = Handle::new();
+}
 
 pub fn handle() -> Handle {
-	(*HANDLE).clone()
+	HANDLE.clone()
 }
 
 pub fn trigger() {

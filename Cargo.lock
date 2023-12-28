@@ -1493,7 +1493,6 @@ dependencies = [
  "bincode",
  "chrono",
  "lazy_static",
- "once_cell",
  "rayon",
  "schemars",
  "serde",
