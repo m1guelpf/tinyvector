@@ -2,16 +2,15 @@ use aide::axum::{
 	routing::{get, post},
 	ApiRouter,
 };
-use axum::Extension;
 use axum_jsonschema::Json;
 use schemars::JsonSchema;
 
-use crate::shutdown::Agent as Shutdown;
+use crate::shutdown;
 
 pub fn handler() -> ApiRouter {
 	ApiRouter::new()
 		.api_route("/", get(root))
-		.api_route("/shutdown", post(shutdown))
+		.api_route("/shutdown", post(trigger_shutdown))
 }
 
 #[derive(Debug, serde::Serialize, JsonSchema)]
@@ -45,8 +44,8 @@ pub async fn root() -> Json<RootResponse> {
 }
 
 #[allow(clippy::unused_async)]
-pub async fn shutdown(Extension(shutdown): Extension<Shutdown>) -> Json<String> {
-	shutdown.start();
+pub async fn trigger_shutdown() -> Json<String> {
+	shutdown::trigger();
 
 	Json("Shutting down...".to_string())
 }
